@@ -81,6 +81,11 @@ function run(rom, witness = []) {
     let regA = 0;
     let regB = 0;
     let regC = 0;
+    let regD = 0;
+    let regE = 0;
+    let regF = 0;
+    let regG = 0;
+    let regH = 0;
 
     const trace = [];
 
@@ -97,6 +102,11 @@ function run(rom, witness = []) {
         const REG_A = regA;
         const REG_B = regB;
         const REG_C = regC;
+        const REG_D = regD;
+        const REG_E = regE;
+        const REG_F = regF;
+        const REG_G = regG;
+        const REG_H = regH;
 
         const STACK_TOP = sp > 0 ? STACK[sp - 1] : 0;
 
@@ -117,6 +127,13 @@ function run(rom, witness = []) {
         let nextA = regA;
         let nextB = regB;
         let nextC = regC;
+        let nextD = regD;
+        let nextE = regE;
+        let nextF = regF;
+        let nextG = regG;
+        let nextH = regH;
+
+        const regs = [regA, regB, regC, regD, regE, regF, regG, regH];
 
         switch (ins.op) {
 
@@ -129,21 +146,27 @@ function run(rom, witness = []) {
                 if (ins.arg === 0) nextA = acc;
                 if (ins.arg === 1) nextB = acc;
                 if (ins.arg === 2) nextC = acc;
+                if (ins.arg === 3) nextD = acc;
+                if (ins.arg === 4) nextE = acc;
+                if (ins.arg === 5) nextF = acc;
+                if (ins.arg === 6) nextG = acc;
+                if (ins.arg === 7) nextH = acc;
+
                 nextPC++;
                 break;
 
             case "ADD":
-                nextACC = add(acc, [regA, regB, regC][ins.arg]);
+                nextACC = add(acc, regs[ins.arg]);
                 nextPC++;
                 break;
 
             case "SUB":
-                nextACC = sub(acc, [regA, regB, regC][ins.arg]);
+                nextACC = sub(acc, regs[ins.arg]);
                 nextPC++;
                 break;
 
             case "MUL": {
-                const r = BigInt(acc) * BigInt([regA, regB, regC][ins.arg]);
+                const r = BigInt(acc) * BigInt(regs[ins.arg]);
                 let reduced = (r & BigInt(MOD)) + (r >> 31n);
                 if (reduced >= BigInt(MOD)) reduced -= BigInt(MOD);
                 nextACC = Number(reduced);
@@ -190,7 +213,7 @@ function run(rom, witness = []) {
                 break;
 
             case "GET":
-                nextACC = [regA, regB, regC][ins.arg];
+                nextACC = regs[ins.arg];
                 nextPC++;
                 break;
 
@@ -278,6 +301,11 @@ function run(rom, witness = []) {
             REG_A,
             REG_B,
             REG_C,
+            REG_D,
+            REG_E,
+            REG_F,
+            REG_G,
+            REG_H,
             STACK_TOP,
 
             // opcode encoding (AIR core)
@@ -293,11 +321,20 @@ function run(rom, witness = []) {
             REG_A_NEXT: nextA,
             REG_B_NEXT: nextB,
             REG_C_NEXT: nextC,
+            REG_D_NEXT: nextD,
+            REG_E_NEXT: nextE,
+            REG_F_NEXT: nextF,
+            REG_G_NEXT: nextG,
+            REG_H_NEXT: nextH,
             STACK_TOP_NEXT
         });
 
         if (ins.op === "HALT") {
-            return { trace, acc: nextACC, regs: { regA, regB, regC } };
+            return {
+                trace,
+                acc: nextACC,
+                regs: [nextA, nextB, nextC, nextD, nextE, nextF, nextG, nextH]
+            };
         }
 
         // commit state
@@ -308,9 +345,14 @@ function run(rom, witness = []) {
         regA = nextA;
         regB = nextB;
         regC = nextC;
+        regD = nextD;
+        regE = nextE;
+        regF = nextF;
+        regG = nextG;
+        regH = nextH;
     }
 
-    return { trace, acc, regs: { regA, regB, regC }, STACK, sp };
+    return { trace, acc, regs: { regA, regB, regC, regD, regE, regF, regG, regH }, STACK, sp };
 }
 
 // -------------------------
