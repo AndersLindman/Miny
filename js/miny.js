@@ -364,7 +364,7 @@ INPUT 0
 
 // Let's do some math to prove it was processed. 
 // We'll add 10 to the secret.
-ADDI 10         // ACC = ACC + regA (Secret + 10)
+ADDI 10         // ACC = ACC + 10 (Secret + 10)
 
 // Halt and output the result
 HALT
@@ -372,7 +372,7 @@ HALT
 
 const rom = parse(program);
 
-// THE SECRET: Only the Prover knows this array!
+// THE SECRET: Only the Prover knows this array.
 // Let's say the secret password is 42.
 const secretWitness = [42];
 
