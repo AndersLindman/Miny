@@ -1,6 +1,5 @@
 // Miny - AIR-canonical zkVM trace generator
 
-
 const MOD = 2 ** 31 - 1;
 
 // -------------------------
@@ -12,23 +11,27 @@ const OPCODE = {
     ADD: 2,
     SUB: 3,
     MUL: 4,
-    SQR: 5,
-    INC: 6,
-    DEC: 7,
-    GET: 8,
-    SELECT: 9,
-    PUSH: 10,
-    POP: 11,
-    DUP: 12,
-    SWAP: 13,
-    JMP: 14,
-    COND: 15,
-    JSR: 16,
-    RET: 17,
-    HALT: 18
+    ADDI: 5,
+    SUBI: 6,
+    MULI: 7,
+    SQR: 8,
+    INC: 9,
+    DEC: 10,
+    GET: 11,
+    SELECT: 12,
+    PUSH: 13,
+    POP: 14,
+    DUP: 15,
+    SWAP: 16,
+    JMP: 17,
+    COND: 18,
+    JSR: 19,
+    RET: 20,
+    INPUT: 21,
+    HALT: 22
 };
 
-const OPCODE_COUNT = 19;
+const OPCODE_COUNT = Object.keys(OPCODE).length;
 
 // -------------------------
 // Field helpers
@@ -69,7 +72,7 @@ function parse(code) {
 // -------------------------
 // VM → AIR trace
 // -------------------------
-function run(rom) {
+function run(rom, witness = []) {
 
     let pc = 0;
     let sp = 0;
@@ -141,6 +144,25 @@ function run(rom) {
 
             case "MUL": {
                 const r = BigInt(acc) * BigInt([regA, regB, regC][ins.arg]);
+                let reduced = (r & BigInt(MOD)) + (r >> 31n);
+                if (reduced >= BigInt(MOD)) reduced -= BigInt(MOD);
+                nextACC = Number(reduced);
+                nextPC++;
+                break;
+            }
+
+            case "ADDI":
+                nextACC = add(acc, ins.arg);
+                nextPC++;
+                break;
+
+            case "SUBI":
+                nextACC = sub(acc, ins.arg);
+                nextPC++;
+                break;
+
+            case "MULI": {
+                const r = BigInt(acc) * BigInt(ins.arg);
                 let reduced = (r & BigInt(MOD)) + (r >> 31n);
                 if (reduced >= BigInt(MOD)) reduced -= BigInt(MOD);
                 nextACC = Number(reduced);
@@ -222,6 +244,8 @@ function run(rom) {
 
             case "JSR":
                 nextPC = acc;
+                STACK[sp] = pc + 1;
+                nextSP++;
                 break;
 
             case "RET":
@@ -230,8 +254,15 @@ function run(rom) {
                 nextPC = STACK[nextSP];
                 break;
 
+            case "INPUT":
+                // The argument acts as an index into the private witness array
+                nextACC = mod(witness[ins.arg] || 0);
+                nextPC++;
+                break;
+
             case "HALT":
-                return { trace, acc: nextACC, regs: { regA, regB, regC } };
+                nextPC = pc; // ZKP Self-Loop: PC points to itself
+                break;
         }
 
         // -------------------------
@@ -253,6 +284,7 @@ function run(rom) {
             OPCODE_ID,
             OP,
             ARG,
+            INPUT_VAL: ins.op === "INPUT" ? witness[ins.arg] : 0,
 
             // post-state
             PC_NEXT: nextPC,
@@ -263,6 +295,10 @@ function run(rom) {
             REG_C_NEXT: nextC,
             STACK_TOP_NEXT
         });
+
+        if (ins.op === "HALT") {
+            return { trace, acc: nextACC, regs: { regA, regB, regC } };
+        }
 
         // commit state
         pc = nextPC;
@@ -281,19 +317,35 @@ function run(rom) {
 // Test
 // -------------------------
 const program = `
-CONST 8
-SET 0
-CONST 6
-PUSH
-GET 0
-JSR
+// Load the secret password from witness index 0 into ACC
+INPUT 0
+
+// Let's do some math to prove it was processed. 
+// We'll add 10 to the secret.
+ADDI 10         // ACC = ACC + regA (Secret + 10)
+
+// Halt and output the result
 HALT
 `;
 
 const rom = parse(program);
-const result = run(rom);
 
-console.log("Final ACC:", result.acc);
+// THE SECRET: Only the Prover knows this array!
+// Let's say the secret password is 42.
+const secretWitness = [42];
+
+// Run the VM, passing the witness
+const result = run(rom, secretWitness);
+
+console.log("Final ACC (should be 42 + 10 = 52):", result.acc);
+console.log("\nTrace sample showing the INPUT step:");
+
+// Find the INPUT step in the trace
+const inputStep = result.trace.find(step => step.OPCODE_ID === OPCODE.INPUT);
+console.log("OPCODE_ID:", inputStep.OPCODE_ID, "(INPUT)");
+console.log("INPUT_VAL loaded:", inputStep.INPUT_VAL);
+console.log("ACC became:", inputStep.ACC_NEXT);
+
 console.log("Final REGS:", result.regs);
 
 console.log("\nTrace sample:");
